@@ -299,6 +299,7 @@ class CharacterBuilderApp:
         for name in candidates:
             if name.lower() in available:
                 return available[name.lower()]
+                
         return "Segoe UI"
 
     def _apply_starwars_font_theme(self, widget):
