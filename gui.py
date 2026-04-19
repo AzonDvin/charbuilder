@@ -10,7 +10,12 @@ import tkinter as tk
 import tkinter.font as tkfont
 from tkinter import ttk, messagebox, filedialog, scrolledtext
 
-from character import Character
+from character import (
+    Character,
+    adjusted_skill_purchase_cost,
+    parse_species_granted_skill_dice,
+)
+from character_sheet import character_sheet_html, character_sheet_text
 from data import (
     ATTRIBUTES,
     SKILL_ATTRIBUTES,
@@ -233,7 +238,7 @@ class CharacterBuilderApp:
             text="SAVAGE WORLDS STAR WARS",
             font=("Segoe UI", 18, "bold"),
             bg="#1a1a2e",
-            fg="#e94560",
+            fg="#8ec5ff",
         ).pack()
         tk.Label(
             header,
@@ -710,22 +715,16 @@ class CharacterBuilderApp:
         self._save_step = save
 
     def _skill_cost(self, skill_name, die_value):
-        """Calculate cost for a skill at given die level."""
-        is_core = skill_name in CORE_SKILLS
-        if die_value == "Untrained":
-            return 0
-        if die_value == "d4":
-            return 0 if is_core else 1
-        if die_value not in {"d6", "d8", "d10", "d12"}:
-            return 0
-        linked = SKILL_ATTRIBUTES.get(skill_name, "Smarts")
-        attr_val = die_to_num(self.char.attributes.get(linked, "d4"))
-        val = die_to_num(die_value)
-        total = 0 if is_core else 1
-        for step in range(1, (val - 4) // 2 + 1):
-            current_die = 4 + (step - 1) * 2
-            total += 1 if current_die < attr_val else 2
-        return total
+        """Calculate cost for a skill at given die level (species Skill dN grants are free)."""
+        core = set(CORE_SKILLS)
+        return adjusted_skill_purchase_cost(
+            skill_name,
+            die_value,
+            self.char.attributes,
+            core,
+            SKILL_ATTRIBUTES,
+            self.char.species_abilities,
+        )
 
     def _recalc_skill_pts(self):
         total_pts = 15 + self.char.hindrance_points_remaining
@@ -745,6 +744,20 @@ class CharacterBuilderApp:
             if s not in self.char.skills:
                 self.char.skills[s] = "d4"
 
+        self._species_skill_grants = parse_species_granted_skill_dice(
+            self.char.species_abilities, SKILL_ATTRIBUTES.keys()
+        )
+        for sk, g_die in self._species_skill_grants.items():
+            cur = self.char.skills.get(
+                sk, "Untrained" if sk not in core_skills else "d4"
+            )
+            if cur == "Untrained":
+                self.char.skills[sk] = g_die
+            else:
+                self.char.skills[sk] = num_to_die(
+                    max(die_to_num(cur), die_to_num(g_die))
+                )
+
         total_pts = 15 + self.char.hindrance_points_remaining
         tk.Label(
             self.content_frame,
@@ -757,6 +770,18 @@ class CharacterBuilderApp:
             font=("Segoe UI", 9),
             fg="gray",
         ).pack(anchor=tk.W, pady=(0, 10))
+        if self._species_skill_grants:
+            grant_txt = ", ".join(
+                f"{n} {d}" for n, d in sorted(self._species_skill_grants.items())
+            )
+            tk.Label(
+                self.content_frame,
+                text=f"Species grants (no extra skill cost to listed die): {grant_txt}",
+                font=("Segoe UI", 9),
+                fg="gray",
+                wraplength=520,
+                justify=tk.LEFT,
+            ).pack(anchor=tk.W, pady=(0, 6))
 
         all_skills = sorted([s for s in SKILL_ATTRIBUTES if s not in CORE_SKILLS])
         all_skills += list(CORE_SKILLS)
@@ -801,6 +826,13 @@ class CharacterBuilderApp:
                 if current_val == "Untrained":
                     return
                 current = die_to_num(current_val)
+                grant_die = self._species_skill_grants.get(skill_name)
+                if grant_die:
+                    floor = die_to_num(grant_die)
+                    if skill_name in core_skills:
+                        floor = max(4, floor)
+                    if current <= floor:
+                        return
                 if skill_name not in core_skills and current == 4:
                     self.skill_vars[skill_name].set("Untrained")
                     self._recalc_skill_pts()
@@ -1409,42 +1441,11 @@ class CharacterBuilderApp:
         )
         summary.pack(fill=tk.BOTH, expand=True)
 
-        lines = [
-            f"NAME: {self.char.name}",
-            f"SPECIES: {self.char.species} ({self.char.species_abilities})",
-            "",
-            "ATTRIBUTES:",
-        ]
-        for a, v in self.char.attributes.items():
-            lines.append(f"  {a}: {v}")
-        lines.extend(["", "SKILLS:"])
-        for s, v in sorted(self.char.skills.items()):
-            if v != "d4" or s in CORE_SKILLS:
-                lines.append(f"  {s}: {v}")
-        armor_mod = 0
-        if self.char.armor and self.char.armor in ARMOR:
-            t = ARMOR[self.char.armor].get("toughness", "0")
-            try:
-                armor_mod = int(str(t).replace("+", ""))
-            except ValueError:
-                armor_mod = 0
-        lines.extend(
-            [
-                "",
-                f"HINDRANCES: {', '.join(self.char.hindrances) or 'None'}",
-                f"EDGES: {', '.join(self.char.edges) or 'None'}",
-                "",
-                f"WEAPONS: {', '.join(self.char.weapons) or 'None'}",
-                f"ARMOR: {self.char.armor}",
-                f"GEAR: {', '.join(self.char.gear) or 'None'}",
-                "",
-                f"TOUGHNESS: {self.char.get_toughness()} (+{armor_mod} armor)",
-                f"PARRY: {self.char.get_parry()}",
-                f"CREDITS: {self.char.credits}",
-            ]
-        )
-        summary.insert(tk.END, "\n".join(lines))
+        summary.insert(tk.END, character_sheet_text(self.char.to_dict()))
         summary.config(state=tk.DISABLED)
+
+        btn_row = tk.Frame(self.content_frame)
+        btn_row.pack(pady=10)
 
         def do_save():
             path = filedialog.asksaveasfilename(
@@ -1458,12 +1459,54 @@ class CharacterBuilderApp:
                 messagebox.showinfo("Saved", f"Character saved to {path}")
                 self.root.quit()
 
+        def export_html_sheet():
+            base = (self.char.name or "character").strip() or "character"
+            for c in '\\/:*?"<>|':
+                base = base.replace(c, "_")
+            path = filedialog.asksaveasfilename(
+                defaultextension=".html",
+                filetypes=[("HTML files", "*.html"), ("All files", "*.*")],
+                initialfile=f"{base}.html",
+            )
+            if path:
+                html_doc = character_sheet_html(self.char.to_dict())
+                with open(path, "w", encoding="utf-8") as f:
+                    f.write(html_doc)
+                messagebox.showinfo("Exported", f"Printable sheet saved to {path}")
+
+        def export_text_sheet():
+            base = (self.char.name or "character").strip() or "character"
+            for c in '\\/:*?"<>|':
+                base = base.replace(c, "_")
+            path = filedialog.asksaveasfilename(
+                defaultextension=".txt",
+                filetypes=[("Text files", "*.txt"), ("All files", "*.*")],
+                initialfile=f"{base}-sheet.txt",
+            )
+            if path:
+                text_doc = character_sheet_text(self.char.to_dict())
+                with open(path, "w", encoding="utf-8") as f:
+                    f.write(text_doc)
+                messagebox.showinfo("Exported", f"Text sheet saved to {path}")
+
         tk.Button(
-            self.content_frame,
+            btn_row,
             text="Save to JSON File",
             font=("Segoe UI", 10),
             command=do_save,
-        ).pack(pady=15)
+        ).pack(side=tk.LEFT, padx=6)
+        tk.Button(
+            btn_row,
+            text="Export printable HTML…",
+            font=("Segoe UI", 10),
+            command=export_html_sheet,
+        ).pack(side=tk.LEFT, padx=6)
+        tk.Button(
+            btn_row,
+            text="Export text sheet…",
+            font=("Segoe UI", 10),
+            command=export_text_sheet,
+        ).pack(side=tk.LEFT, padx=6)
 
     def run(self):
         def on_next():

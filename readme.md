@@ -25,6 +25,7 @@ The character builder walks through this process in order:
 - Equipment shop with buy/sell and live credit recalculation.
 - Derived stat calculation (`Toughness` and `Parry`).
 - Final character export to `.json`.
+- Optional **print-friendly** exports: HTML layout or plain text (from the Summary step, or from a saved JSON file via CLI).
 
 ## Run the Project
 
@@ -46,6 +47,7 @@ python main.py
 - `main.py` - App entry point.
 - `gui.py` - Tkinter wizard UI and step logic.
 - `character.py` - Character model and derived stat logic.
+- `character_sheet.py` - Text/HTML character sheet from exported JSON (used by CLI and Summary exports).
 - `data.py` - JSON data loader and data grouping.
 - `data/` - Source game content:
   - `attributes.json`
@@ -74,6 +76,30 @@ When the build is complete, the app saves a character JSON that includes:
 - Hindrances and edges
 - Equipment and credits
 - Derived values (`toughness`, `parry`)
+
+## Display and print from JSON
+
+After you have a character `.json` file, you can turn it into something easy to read or print in several ways:
+
+1. **Summary step in the app** — On the last step, use **Export printable HTML…** or **Export text sheet…** (same layout as the on-screen summary, plus a styled HTML page for printing).
+
+2. **Command-line renderer** — From the project directory (so `data/` can resolve armor names for the armor bonus line):
+
+   ```bash
+   python character_sheet.py path/to/character.json --html sheet.html --open
+   ```
+
+   Other flags:
+
+   - `--text sheet.txt` — plain text sheet
+   - `--stdout` — print plain text to the terminal
+   - With no `--html` / `--text` / `--stdout`, prints plain text and a short tip on stderr
+
+3. **Browser print to PDF** — Open the generated HTML, use the browser’s **Print** dialog, and choose **Save as PDF** if you want a PDF without extra Python libraries.
+
+4. **Bring your own template** — The JSON is a simple structure (`name`, `species`, `attributes`, `skills`, `edges`, etc.). You can import it into a word processor, Obsidian, or another tool and format it however you like.
+
+The logic for the text/HTML sheet lives in `character_sheet.py` (`character_sheet_text`, `character_sheet_html`).
 
 ## Notes
 
