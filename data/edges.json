@@ -19,7 +19,7 @@
   "Improved Frenzy": {"requirements": "Veteran, Fighting d10, Frenzy", "desc": "Two extra Fighting dice against a single target"},
   "Investigator": {"requirements": "Smarts d8", "desc": "+2 Investigation"},
   "Scholar": {"requirements": "Smarts d8", "desc": "+2 to two Knowledge skills"},
-  "Thief": {"requirements": "Novice, Agility d8, Climbing d6, Lockpicking d6, Stealth d8", "desc": "+2 to Climbing, Lockpicking, and Stealth"},
+  "Thief": {"requirements": "Novice, Agility d8, Athletics d6, Lockpicking d6, Stealth d8", "desc": "+2 to Athletics(Climbing), Lockpicking, and Stealth"},
   "Woodsman": {"requirements": "Novice, Spirit d6, Survival d8, Tracking d8", "desc": "+2 to Survival and Tracking"},
   "McGyver": {"requirements": "Novice, Smarts d6, Notice d8, Repair d6", "desc": "Can improvise tools and simple devices from spare parts"},
   "Strong Willed": {"requirements": "Spirit d8", "desc": "+2 to resist Tests"},
