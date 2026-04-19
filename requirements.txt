@@ -1,0 +1,2 @@
+# Savage Worlds Star Wars Character Builder
+# Uses only Python standard library - no external dependencies required
